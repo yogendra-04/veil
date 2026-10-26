@@ -16,6 +16,9 @@ import android.view.inputmethod.InputMethodManager
 import android.webkit.*
 import android.widget.PopupMenu
 import android.widget.Toast
+import androidx.webkit.ScriptHandler
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -32,6 +35,10 @@ class MainActivity : AppCompatActivity() {
 
     private class Tab(val web: WebView) {
         var blocked = 0
+        @Volatile var pageHost: String? = null
+        var script: ScriptHandler? = null      // document-start ad-hiding script
+        var scriptVersion = -1                 // AdBlocker.version it was built from
+        var staleAtStart = false               // page began before the current rules were installed
         val title: String get() = web.title?.takeIf { it.isNotBlank() } ?: web.url ?: "New tab"
     }
 
@@ -82,6 +89,14 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        ServiceWorkerController.getInstance().setServiceWorkerClient(object : ServiceWorkerClient() {
+            override fun shouldInterceptRequest(req: WebResourceRequest): WebResourceResponse? = when {
+                VpnManager.shouldBlockAll() -> AdBlocker.emptyResponse()
+                AdBlocker.shouldBlock(req.url, null) -> AdBlocker.emptyResponse()
+                else -> null
+            }
+        })
+
         lifecycleScope.launch { VpnManager.state.collect { renderVpn(it) } }
 
         // If the VPN was on last time, reconnect before loading anything (kill switch holds meanwhile).
@@ -121,7 +136,12 @@ class MainActivity : AppCompatActivity() {
                 if (VpnManager.shouldBlockAll()) {        // kill switch
                     return if (req.isForMainFrame) htmlPage(KILL_SWITCH_PAGE) else AdBlocker.emptyResponse()
                 }
-                if (!req.isForMainFrame && AdBlocker.isBlocked(req.url.host)) {   // ad / tracker
+                if (req.isForMainFrame) {                 // new page: remember its site, reset the counter
+                    t.pageHost = req.url.host
+                    runOnUiThread { t.blocked = 0; if (t === tab) renderShield() }
+                    return null
+                }
+                if (AdBlocker.shouldBlock(req.url, t.pageHost)) {   // ad / tracker
                     runOnUiThread { t.blocked++; if (t === tab) renderShield() }
                     return AdBlocker.emptyResponse()
                 }
@@ -140,11 +160,14 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
-                t.blocked = 0
+                url?.let { u -> Uri.parse(u).host?.let { t.pageHost = it } }
+                t.staleAtStart = t.scriptVersion != AdBlocker.version || !hasDocStart
+                installAdScript(t)                       // ready for the next navigation
                 if (t === tab) { renderUrl(); renderShield() }
             }
+            override fun onPageCommitVisible(view: WebView, url: String?) = applyCosmetics(t)
             override fun onPageFinished(view: WebView, url: String?) {
-                if (AdBlocker.enabled) view.evaluateJavascript(AdBlocker.COSMETIC_JS, null)
+                applyCosmetics(t)
                 if (t === tab) renderUrl()
             }
         }
@@ -167,11 +190,31 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         }
 
+        installAdScript(t)
         tabs += t
         b.content.addView(web)
         switchTo(tabs.lastIndex)
         if (transport != null && resultMsg != null) { transport.webView = web; resultMsg.sendToTarget() }
         else web.loadUrl(toUrl(url ?: HOME))
+    }
+
+    private val hasDocStart by lazy { WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT) }
+
+    /** (Re)installs the document-start script that hides ads before they render. */
+    private fun installAdScript(t: Tab) {
+        if (!hasDocStart) return
+        val want = if (AdBlocker.enabled) AdBlocker.version else -2
+        if (t.scriptVersion == want) return
+        t.script?.remove(); t.script = null
+        if (AdBlocker.enabled) t.script = WebViewCompat.addDocumentStartJavaScript(t.web, AdBlocker.documentStartScript(), setOf("*"))
+        t.scriptVersion = want
+    }
+
+    /** Site-specific hiding, plus the generic CSS if this page started before the lists were ready. */
+    private fun applyCosmetics(t: Tab) {
+        if (!AdBlocker.enabled) return
+        if (t.staleAtStart) t.web.evaluateJavascript(AdBlocker.documentStartScript(), null)
+        AdBlocker.siteScript(t.pageHost)?.let { t.web.evaluateJavascript(it, null) }
     }
 
     private fun switchTo(i: Int) {
@@ -227,6 +270,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun toggleAdblock() {
         AdBlocker.setEnabled(this, !AdBlocker.enabled)
+        tabs.forEach(::installAdScript)
         toast(if (AdBlocker.enabled) "Ad blocker on" else "Ad blocker off for all sites")
         tab?.web?.reload()
         renderShield()

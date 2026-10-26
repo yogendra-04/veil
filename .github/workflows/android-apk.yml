@@ -24,16 +24,31 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: "8.11.1"
+      - name: Bundle ad-block filter lists into the APK
+        run: |
+          mkdir -p app/src/main/assets/filters
+          # keep in sync with AdBlocker.SOURCES
+          while read -r name url; do
+            curl -fsSL --retry 3 "$url" -o "app/src/main/assets/filters/$name.txt" || echo "::warning::could not fetch $name"
+          done <<'LISTS'
+          easylist https://easylist.to/easylist/easylist.txt
+          easyprivacy https://easylist.to/easylist/easyprivacy.txt
+          indianlist https://easylist-downloads.adblockplus.org/indianlist.txt
+          adguard-dns https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt
+          stevenblack https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+          LISTS
+          ls -la app/src/main/assets/filters
+          test $(cat app/src/main/assets/filters/*.txt | wc -c) -gt 1000000
       - name: Build APK
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           set -o pipefail
-          gradle :app:assembleRelease --no-daemon --console=plain 2>&1 | tee build.log
+          gradle :app:testReleaseUnitTest :app:assembleRelease --no-daemon --console=plain 2>&1 | tee build.log
       - name: Report build errors
         if: failure()
         run: |
           # Surface compiler/Gradle errors as annotations (readable without the full log)
-          grep -E "^e: |error:|What went wrong|Could not|FAILURE|> " build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+          grep -E "^e: |error:|What went wrong|Could not|FAILURE|> |AssertionError|expected" build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
       - uses: actions/upload-artifact@v4
         with:
           name: veil-apk

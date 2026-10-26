@@ -3,3 +3,4 @@ build/
 .gradle/
 app/build/
 build.log
+app/src/main/assets/filters/
