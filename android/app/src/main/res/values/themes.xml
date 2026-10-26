@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Veil" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#3A6DF0</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+    <color name="good">#1F9D55</color>
+    <color name="warn">#D08A12</color>
+    <color name="bad">#D23C3C</color>
+    <color name="idle">#8A8C94</color>
+</resources>

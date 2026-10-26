@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src * data:; style-src 'self'">
+  <title>Veil</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <div id="tabstrip">
+    <div id="tabs"></div>
+    <button id="newtab" title="New tab (⌘T)">+</button>
+  </div>
+
+  <div id="toolbar">
+    <button id="back" title="Back (⌘[)">‹</button>
+    <button id="forward" title="Forward (⌘])">›</button>
+    <button id="reload" title="Reload (⌘R)">↻</button>
+    <form id="urlform"><input id="url" spellcheck="false" autocomplete="off" placeholder="Search or enter address"></form>
+    <button id="shield" class="pill" title="Ad blocker — click to turn off/on"><span class="dot"></span><span id="shieldtxt">0</span></button>
+    <button id="vpnpill" class="pill" title="VPN"><span class="dot"></span><span id="vpntxt">VPN off</span></button>
+  </div>
+
+  <div id="errbox" hidden><h2>Can’t open this page</h2><p id="errmsg"></p><div class="row"><button id="retry">Try again</button><button id="openvpn">VPN settings</button></div></div>
+
+  <div id="panel" hidden>
+    <div class="card">
+      <div class="row head">
+        <h2>VPN</h2>
+        <label class="switch"><input type="checkbox" id="vpnOn"><span></span></label>
+      </div>
+      <p id="vpnStatus" class="status"></p>
+
+      <div class="seg" id="mode">
+        <button data-mode="wireguard">WireGuard</button>
+        <button data-mode="proxy">Proxy</button>
+      </div>
+
+      <div id="wgBox">
+        <label>WireGuard config</label>
+        <div class="row"><code id="wgPath">Not chosen</code><button id="pickConf">Choose .conf…</button></div>
+        <label>wireproxy</label>
+        <div class="row"><code id="wpStatus"></code><button id="pickBin">Locate…</button></div>
+        <p class="hint">Runs WireGuard in user space just for Veil — no admin rights, the rest of your Mac is untouched. Install once with <code>brew install wireproxy</code>.</p>
+      </div>
+
+      <div id="proxyBox" hidden>
+        <label for="proxy">Proxy address</label>
+        <div class="row"><input id="proxy" spellcheck="false" placeholder="socks5://host:1080"><button id="saveProxy">Save</button></div>
+        <p class="hint">SOCKS5 or HTTP. Works with Outline/Shadowsocks clients, <code>ssh -D 1080 you@server</code>, or a provider's proxy.</p>
+      </div>
+
+      <p class="hint">Kill switch: while the VPN is on, pages never load over your normal connection — if the tunnel drops they fail instead. WebRTC is restricted so it can't reveal your real IP.</p>
+    </div>
+
+    <div class="card">
+      <div class="row head">
+        <h2>Ad &amp; tracker blocker</h2>
+        <label class="switch"><input type="checkbox" id="adOn"><span></span></label>
+      </div>
+      <p class="hint">EasyList + EasyPrivacy + uBlock filters (via Ghostery's engine), with cosmetic hiding of leftover ad boxes. Lists are cached and refreshed weekly.</p>
+    </div>
+
+    <div class="card">
+      <div class="row head"><h2>Your IP</h2><button id="checkIp">Check again</button></div>
+      <p id="ip" class="big">—</p>
+    </div>
+  </div>
+
+  <script src="ui.js"></script>
+</body>
+</html>

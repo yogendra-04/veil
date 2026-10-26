@@ -1,0 +1,31 @@
+{
+  "name": "veil-browser",
+  "productName": "Veil",
+  "version": "0.1.0",
+  "description": "A private browser with a built-in ad blocker and VPN tunnel",
+  "main": "src/main.js",
+  "author": "Yogendra Naidu Puthumbaku",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "^2.20.1"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "dev.veil.browser",
+    "productName": "Veil",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg"]
+    },
+    "extraResources": [
+      { "from": "bin", "to": "bin", "filter": ["**/*"] }
+    ]
+  }
+}
