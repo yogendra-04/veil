@@ -6,6 +6,9 @@ on:
     paths: ["android/**", ".github/workflows/android-apk.yml"]
   workflow_dispatch:
 
+permissions:
+  contents: write   # lets the workflow publish the APK as a Release
+
 jobs:
   build:
     runs-on: ubuntu-24.04          # comes with the Android SDK preinstalled
@@ -35,3 +38,12 @@ jobs:
         with:
           name: veil-apk
           path: android/app/build/outputs/apk/release/*.apk
+      - name: Publish APK as a Release (direct phone download)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cp app/build/outputs/apk/release/*.apk Veil.apk
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest Veil.apk --title "Veil (latest build)" \
+            --notes "Open this page on your Android phone and tap Veil.apk to install. Built from ${GITHUB_SHA::7}."
+        env:
+          GH_TOKEN: ${{ github.token }}
